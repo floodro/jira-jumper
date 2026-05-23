@@ -1,23 +1,32 @@
-const input = document.getElementById('ticketNum');
-const container = document.getElementById('historyContainer');
+const ticketNumInput = document.getElementById('ticketNum');
+const historyContainer = document.getElementById('historyContainer');
+const prefixSelect = document.getElementById('prefixSelect');
 
-// 1. Load history immediately when popup opens
-chrome.storage.local.get(['recentTickets'], (data) => {
-  const history = data.recentTickets || [];
-  renderHistory(history);
+// 1. Load history and prefix immediately when popup opens
+chrome.storage.local.get(['recentTickets', 'lastPrefix'], (data) => {
+  const ticketHistory = data.recentTickets || [];
+  renderHistory(ticketHistory);
+  if (data.lastPrefix) {
+    prefixSelect.value = data.lastPrefix;
+  }
+});
+
+prefixSelect.addEventListener('change', (e) => {
+  chrome.storage.local.set({ lastPrefix: e.target.value });
+  ticketNumInput.focus();
 });
 
 document.getElementById('goBtn').addEventListener('click', openTicket);
-input.addEventListener('keypress', (e) => { if (e.key === 'Enter') openTicket(); });
+ticketNumInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') openTicket(); });
 
 function openTicket() {
-  const val = input.value.trim();
+  const val = ticketNumInput.value.trim();
   if (!val) return;
 
-  const ticket = val.toUpperCase().startsWith('PGNG-') ? val.toUpperCase() : `PGNG-${val}`;
+  const prefix = prefixSelect.value;
+  // If user typed the prefix manually (contains '-'), use it, otherwise prepend selected prefix
+  const ticket = val.includes('-') ? val.toUpperCase() : `${prefix}-${val}`;
   const url = `https://tdh-int.atlassian.net/browse/${ticket}`;
-
-  // 2. Save to History
   saveToHistory(ticket);
   
   chrome.tabs.create({ url: url });
@@ -30,7 +39,7 @@ function saveToHistory(ticket) {
     // Remove if already exists (to move it to the top)
     history = history.filter(item => item !== ticket);
     
-    // Add to start and limit to 3 items
+    // Add to start and limit to 3 tickets for now
     history.unshift(ticket);
     history = history.slice(0, 3);
 
@@ -41,7 +50,7 @@ function saveToHistory(ticket) {
 }
 
 function renderHistory(history) {
-  container.innerHTML = '';
+  historyContainer.innerHTML = '';
   history.forEach(ticket => {
     const item = document.createElement('div');
     item.className = 'history-item';
@@ -49,6 +58,6 @@ function renderHistory(history) {
     item.onclick = () => {
       chrome.tabs.create({ url: `https://tdh-int.atlassian.net/browse/${ticket}` });
     };
-    container.appendChild(item);
+    historyContainer.appendChild(item);
   });
 }
